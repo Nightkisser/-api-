@@ -1,0 +1,115 @@
+import requests
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.animation as ani
+
+# pandas操作excel
+
+class baidu_api:
+    # 定义派生类的基本参数，包括出发地定位，目的地定位以及百度api的ak
+    def __init__(self,start,end,ak):
+        self.start = start
+        self.end = end
+        # 填写自己申请的ak号
+        self.ak = ak
+
+    # 创建文件读写器
+    def create_file(self,path):
+        # path为文件路径，自己定义
+        writer = pd.ExcelWriter(path)
+        return writer
+
+    # 提取出发地到目的地的所有路线方案
+    def get_route_data(self,writer):
+        # 获取路线规划信息源码
+        url = 'http://api.map.baidu.com/direction/v2/transit?' + 'origin=' + self.start + '&destination=' + self.end + '&ak=' + self.ak
+        response = requests.get(url)
+        content = response.json()
+        # 路径path的获取顺序
+        # test = content['result']['routes'][i]['steps'][0][0]['path']
+        # 路线routes的获取
+        test = content['result']['routes']
+        len_route = len(test)
+        # 循环获取每一条路线
+        for i in range(len_route):
+            steps = test[i]['steps']
+            len_steps = len(steps)
+            o_lat = []
+            o_lng = []
+            # 循环获取每条路线的每一步
+            for j in range(len_steps):
+                singles = steps[j]
+                len_single = len(singles)
+                # 循环获取每一步的具体路径
+                for k in range(len_single):
+                    single = singles[k]
+                    ord_list = single['path'].split(';')
+                    # 将具体路径保存为列表
+                    for each in ord_list:
+                        o_lat.append(each.split(',')[0])
+                        o_lng.append(each.split(',')[-1])
+                    # 将每一条路线的大致轨迹点按经纬度保存到表格中
+            excel = pd.DataFrame({'lat':o_lat, 'lng':o_lng})
+            # 保存到自命名的sheet表格
+            excel.to_excel(excel_writer=writer, sheet_name='route' + str(i))
+        # 保存文件并退出
+        writer.save()
+
+    # 数据可视化,将轨迹数据画出来
+    def data_visual(self, filepath):
+        # 初始化画布
+        f = pd.ExcelFile(filepath)
+        # 遍历所有工作表
+        fig = plt.figure()
+        for each in f.sheet_names:
+            df = pd.read_excel(path,sheet_name=each,index_col=None)
+            xx, yy = [], []
+            xxx, yyy = [], []
+            x = df.iloc[:, 1]
+            y = df.iloc[:, 2]
+            # 提取表格经纬度数据
+            for each in range(len(x)):
+                xx.append(x[each])
+                yy.append(y[each])
+
+            plt.grid(ls='--')
+            # 可选择定义横坐标和纵坐标的范围，即经纬度范围
+            # plt.xlim((xx[0], xx[-1]))
+            # plt.ylim((yy[0], yy[-1]))
+
+            # 绘制x、y的坐标标识
+            xtext_ani = plt.text(5, 0.5, str(xx[0]), fontsize=12)
+            ytext_ani = plt.text(5, 0.4, str(yy[0]), fontsize=12)
+            # 绘制轨迹点
+            tra_ani, = plt.plot(xx[0], yy[0], c='red', alpha=0.4, marker='o')
+            # 更新函数
+            def updata(num):
+                xxx.append(xx[num])
+                yyy.append(yy[num])
+                # 更新数据值
+                tra_ani.set_data(xxx,yyy)
+                xtext_ani.set_text('x=%.6f' % xx[num])
+                ytext_ani.set_text('y=%.6f' % yy[num])
+                # xtext_ani.set_text('x=%.6f' % xxx[num])
+                # ytext_ani.set_text('y=%.6f' % yyy[num])
+                return [tra_ani, xtext_ani, ytext_ani]
+            # 绘制动态轨迹图
+            anim = ani.FuncAnimation(fig=fig, func=updata, frames=np.arange(0, len(xx)), interval=100,blit=True)
+            # 保存动态图为gif格式
+            anim.save(str(each) + '.gif',writer='pillow',fps=60)
+            plt.show()
+
+if __name__ == '__main__':
+    start = '32.224312,120.456879'
+    end = '31.899709,118.829649'
+    ak = 'BQk4iEzapG6HG1RQmOPCVulAuWKfTaoy'
+    path = 'D:\zc\轨迹数据\gotoschool.xlsx'
+    test = baidu_api(start,end,ak)
+    writer = test.create_file(path)
+    test.get_route_data(writer)
+    test.data_visual(path)
+
+
+
+
