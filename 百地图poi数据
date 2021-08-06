@@ -1,0 +1,60 @@
+import requests
+import json
+import time
+import pandas as pd
+
+
+class BaidupoiSpider:
+    def __init__(self, url):
+        self._sum = 0
+        self._aknum = 0
+        self._baseUrl = url
+        # 搜索字段
+        self._query = ['美食', '酒店', '购物', '生活服务', '丽人', '旅游景点', '休闲娱乐', '运动健身', '教育培训',
+                       '文化传媒', '医疗', '汽车服务', '交通设施', '金融', '房地产', '公司企业', '政府机构',
+                       '出入口', '自然地物', '行政地标', '门址']
+        self._region = '昆山'
+        self._pageSize = 20
+        self._pageNum = 0
+        self._output = 'json'
+        # 个人申请的ak
+        self._ak = []
+
+    def storePoi(self, idx, res, df):
+        for each in range(len(res)):
+        # poi名字，地点，地区，经纬度，类别
+            name = res[each]['name']
+            address = res[each]['address']
+            area = res[each]['area']
+            lat = res[each]['location']['lat']
+            lng = res[each]['location']['lng']
+            tag = self._query[idx]
+            df.loc[self._sum] = [name, address, area, lat, lng, tag]
+            self._sum += 1
+
+    def parse(self, path):
+        df = pd.DataFrame(columns=['name', 'address', 'area', 'lat', 'lng', 'tag'])
+        for i in range(len(self._query)):
+            url = self._baseUrl + 'query=' + self._query[i] + '&region=' + self._region + '&page_size=' + \
+                  str(self._pageSize) + '&page_num=' + str(self._pageNum) + '&output=' + self._output + \
+                  '&ak=' + self._ak[self._aknum]
+            self._pageNum = 0
+            while True:
+                try:
+                    r = requests.get(url).text
+                    res = json.loads(r)['results']
+                except KeyError:
+                    self._aknum += 1
+                    continue
+                    
+                self.storePoi(i, res, df)
+                if len(res) < 20:
+                    break
+                self._pageNum += 1
+        df.to_csv(path)
+
+
+path = '/home/zcreset/Scrapy/爬虫/poi/baiduPOI.csv'
+baseUrl = 'http://api.map.baidu.com/place/v2/search?'
+BPoi = BaidupoiSpider(baseUrl)
+BPoi.parse(path)
